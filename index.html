@@ -141,11 +141,12 @@
         '放假': { bg: '#f1f2f6', text: '#a4b0be' }, '不排課': { bg: '#f1f2f6', text: '#a4b0be' }
     };
 
-    // 【修改】：變為空陣列/物件，由程式讀取後動態生成
-    let schedule = [];
-    let weekDates = {}; 
+    // 核心資料結構: 5週 x 8節 x 5天
+    let schedule = Array.from({length: 5}, () => Array.from({length: 8}, () => Array(5).fill(null)));
+    let weekDates = {0: [], 1: [], 2: [], 3: [], 4: []}; 
     let maxWeek = 0;
 
+    // 【新增】：自動把 "8:10" 補回 "08:10"，解決早上課程消失的問題
     function normalizeTime(t) {
         if (!t) return "";
         let s = t.trim();
@@ -168,14 +169,109 @@
                 let wIdx = parseInt(row.Week) - 1;
                 let dIdx = dayMap[row.Weekday];
                 
+                // 【修改】：使用 normalizeTime 轉換 Google Sheets 傳來的時間
                 let sIdx = startMap[normalizeTime(row['Start Time'])];
                 let eIdx = endMap[normalizeTime(row['End Time'])];
                 
-                // 【新增】：自動偵測最大週數，並動態建立骨架，無限擴充
                 if (wIdx > maxWeek) maxWeek = wIdx;
-                if (!schedule[wIdx]) schedule[wIdx] = Array.from({length: 8}, () => Array(5).fill(null));
-                if (!weekDates[wIdx]) weekDates[wIdx] = [];
                 
                 // 記錄每週的日期，用於顯示表頭
                 if(row.Date && !weekDates[wIdx][dIdx]) {
-                    weekDates[wIdx][dIdx] = row.Date.substring(5); // 只
+                    weekDates[wIdx][dIdx] = row.Date.substring(5); // 只取 MM/DD
+                }
+
+                // 填入對應的節次 (支援跨節課，例如一次佔兩格)
+                if(sIdx !== undefined && eIdx !== undefined) {
+                    for(let r = sIdx; r <= eIdx; r++) {
+                        schedule[wIdx][r][dIdx] = {
+                            n: row['Course Name'],
+                            d: row.Department,
+                            t: row.Instructor,
+                            loc: row.Location
+                        };
+                    }
+                }
+            });
+
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('syncStatus').innerHTML = "✅ 與 Google Sheets 同步完成";
+            renderTable();
+        },
+        error: function(err) {
+            document.getElementById('loading').innerHTML = "❌ 讀取資料失敗，請確認 Google Sheets 權限設定。";
+            document.getElementById('syncStatus').innerHTML = "⚠️ 同步失敗";
+            console.error(err);
+        }
+    });
+
+    let currentWeek = 0;
+
+    function changeWeek(delta) {
+        currentWeek += delta;
+        if (currentWeek < 0) currentWeek = 0;
+        if (currentWeek > maxWeek) currentWeek = maxWeek;
+        
+        document.getElementById('prevBtn').disabled = (currentWeek === 0);
+        document.getElementById('nextBtn').disabled = (currentWeek === maxWeek);
+        
+        renderTable();
+    }
+
+    function renderTable() {
+        document.getElementById("weekDisplay").innerText = `第 ${currentWeek + 1} 週`;
+        
+        // 更新表頭日期
+        const days = ["週一", "週二", "週三", "週四", "週五"];
+        for(let i=0; i<5; i++) {
+            let dateStr = weekDates[currentWeek][i] ? ` <br><span style="font-size:0.8em; opacity:0.7;">(${weekDates[currentWeek][i]})</span>` : '';
+            document.getElementById(`th-${i}`).innerHTML = days[i] + dateStr;
+        }
+
+        const tbody = document.querySelector("#scheduleTable tbody");
+        tbody.innerHTML = "";
+        
+        let weekData = schedule[currentWeek];
+        
+        weekData.forEach((row, rIndex) => {
+            let tr = document.createElement("tr");
+            let tdTime = document.createElement("td");
+            tdTime.className = "time-col";
+            tdTime.innerHTML = times[rIndex];
+            tr.appendChild(tdTime);
+
+            row.forEach((course, cIndex) => {
+                let td = document.createElement("td");
+                
+                if (!course) {
+                    // 空白時間補上「不排課」
+                    td.innerHTML = `<div class="card" style="background-color: #f1f2f6; color: #a4b0be;"><div class="course-name">不排課</div></div>`;
+                } else {
+                    let colors = deptColors[course.d] || { bg: '#ecf0f1', text: '#2c3e50' }; 
+                    td.innerHTML = `
+                        <div class="card" style="background-color: ${colors.bg}; color: ${colors.text};">
+                            <div class="course-name">${course.n}</div>
+                            ${course.d && course.d !== '不排課' && course.d !== '放假' && course.d !== '溫書假' ? `<span class="dept-tag">${course.d}</span>` : ''}
+                            <div class="course-meta">${course.t || ''}</div>
+                        </div>
+                    `;
+                }
+                tr.appendChild(td);
+            });
+
+            tbody.appendChild(tr);
+            
+            if (rIndex === 3) {
+                let breakTr = document.createElement("tr");
+                breakTr.innerHTML = `<td colspan="6" style="background-color: #ecf0f1; font-weight: bold; color: #7f8c8d; padding: 4px; text-align: center;">中午休息</td>`;
+                tbody.appendChild(breakTr);
+            }
+        });
+
+        // 初始化按鈕狀態
+        document.getElementById('prevBtn').disabled = (currentWeek === 0);
+        document.getElementById('nextBtn').disabled = (currentWeek === maxWeek);
+    }
+</script>
+
+</body>
+</html>
