@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>消化科學模組 - 雲端自動週曆</title>
+    <title>M4 臨床模組 - 雲端自動週曆</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
         :root {
@@ -94,7 +94,7 @@
 <body>
 
 <div class="header-container">
-    <h1>消化科學模組 <span style="font-size:0.6em; color:#7f8c8d;">(自動同步版)</span></h1>
+    <h1>M4 臨床模組 <span style="font-size:0.6em; color:#7f8c8d;">(自動同步版)</span></h1>
     <div class="status" id="syncStatus">🔄 正在與 Google Sheets 同步資料...</div>
 </div>
 
@@ -129,24 +129,36 @@
     const endMap = {"09:00":0, "09:50":1, "10:50":2, "11:40":3, "14:20":4, "15:10":5, "16:10":6, "17:00":7};
     const dayMap = {"週一":0, "週二":1, "週三":2, "週四":3, "週五":4};
 
+    // 自訂的模組與週次標題
+    const weekTitles = [
+        "消化模組 第 1 週", "消化模組 第 2 週", "消化模組 第 3 週", "消化模組 第 4 週", "消化模組 第 5 週",
+        "腎泌模組 第 1 週", "腎泌模組 第 2 週", "腎泌模組 第 3 週", "腎泌模組 第 4 週"
+    ];
+
     const deptColors = {
         '內科': { bg: '#e3f2fd', text: '#1565c0' }, '外科': { bg: '#ffebee', text: '#c62828' },
-        '生理科': { bg: '#e8f5e9', text: '#2e7d32' }, '病理科': { bg: '#f3e5f5', text: '#7b1fa2' },
-        '解剖科': { bg: '#fff3e0', text: '#e65100' }, '小兒科': { bg: '#fff8e1', text: '#ff8f00' },
+        '生理科': { bg: '#e8f5e9', text: '#2e7d32' }, '生理學科': { bg: '#e8f5e9', text: '#2e7d32' },
+        '病理科': { bg: '#f3e5f5', text: '#7b1fa2' }, '彰基病理學科': { bg: '#f3e5f5', text: '#7b1fa2' },
+        '解剖科': { bg: '#fff3e0', text: '#e65100' }, '解剖學科': { bg: '#fff3e0', text: '#e65100' },
+        '小兒科': { bg: '#fff8e1', text: '#ff8f00' }, '兒科': { bg: '#fff8e1', text: '#ff8f00' },
         '寄生蟲科': { bg: '#fffde7', text: '#fbc02d' }, '微免科': { bg: '#e0f7fa', text: '#00838f' },
-        '藥理科': { bg: '#fce4ec', text: '#c2185b' }, '醫學影像科': { bg: '#ede7f6', text: '#4527a0' },
+        '藥理科': { bg: '#fce4ec', text: '#c2185b' }, '藥理學科': { bg: '#fce4ec', text: '#c2185b' },
+        '醫學影像科': { bg: '#ede7f6', text: '#4527a0' }, '醫學影像學科': { bg: '#ede7f6', text: '#4527a0' },
         '腫瘤內科': { bg: '#e8eaf6', text: '#283593' }, '放射腫瘤科': { bg: '#e8eaf6', text: '#283593' },
+        '腎臟內科': { bg: '#e3f2fd', text: '#0d47a1' }, '彰基腎臟內科': { bg: '#e3f2fd', text: '#0d47a1' }, '台中榮總腎臟內科': { bg: '#e3f2fd', text: '#0d47a1' },
+        '泌尿科': { bg: '#fce4ec', text: '#880e4f' }, '核醫科': { bg: '#f4ff81', text: '#827717' },
+        '營養系': { bg: '#ffe0b2', text: '#e65100' },
         '臨床技能': { bg: '#e0f2f1', text: '#00695c' }, 'PBL': { bg: '#fff3e0', text: '#ef6c00' },
         '考核': { bg: '#ffebee', text: '#b71c1c' }, '溫書假': { bg: '#e2e8f0', text: '#475569' },
         '放假': { bg: '#f1f2f6', text: '#a4b0be' }, '不排課': { bg: '#f1f2f6', text: '#a4b0be' }
     };
 
-    // 核心資料結構: 5週 x 8節 x 5天
-    let schedule = Array.from({length: 5}, () => Array.from({length: 8}, () => Array(5).fill(null)));
-    let weekDates = {0: [], 1: [], 2: [], 3: [], 4: []}; 
-    let maxWeek = 0;
+    // 核心資料結構: 改為 9週 x 8節 x 5天
+    let schedule = Array.from({length: 9}, () => Array.from({length: 8}, () => Array(5).fill(null)));
+    let weekDates = {0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: []}; 
+    let maxWeek = 8; // 固定為 9 週的長度 (index 0~8)
 
-    // 【新增】：自動把 "8:10" 補回 "08:10"，解決早上課程消失的問題
+    // 自動把 "8:10" 補回 "08:10"，解決早上課程消失的問題
     function normalizeTime(t) {
         if (!t) return "";
         let s = t.trim();
@@ -169,19 +181,16 @@
                 let wIdx = parseInt(row.Week) - 1;
                 let dIdx = dayMap[row.Weekday];
                 
-                // 【修改】：使用 normalizeTime 轉換 Google Sheets 傳來的時間
                 let sIdx = startMap[normalizeTime(row['Start Time'])];
                 let eIdx = endMap[normalizeTime(row['End Time'])];
                 
-                if (wIdx > maxWeek) maxWeek = wIdx;
-                
                 // 記錄每週的日期，用於顯示表頭
-                if(row.Date && !weekDates[wIdx][dIdx]) {
+                if(row.Date && wIdx <= maxWeek && !weekDates[wIdx][dIdx]) {
                     weekDates[wIdx][dIdx] = row.Date.substring(5); // 只取 MM/DD
                 }
 
-                // 填入對應的節次 (支援跨節課，例如一次佔兩格)
-                if(sIdx !== undefined && eIdx !== undefined) {
+                // 填入對應的節次
+                if(sIdx !== undefined && eIdx !== undefined && wIdx <= maxWeek) {
                     for(let r = sIdx; r <= eIdx; r++) {
                         schedule[wIdx][r][dIdx] = {
                             n: row['Course Name'],
@@ -218,7 +227,8 @@
     }
 
     function renderTable() {
-        document.getElementById("weekDisplay").innerText = `第 ${currentWeek + 1} 週`;
+        // 使用自訂的標題陣列
+        document.getElementById("weekDisplay").innerText = weekTitles[currentWeek];
         
         // 更新表頭日期
         const days = ["週一", "週二", "週三", "週四", "週五"];
