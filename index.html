@@ -2,72 +2,123 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>M4 臨床模組 - 雲端自動週曆</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
         :root {
-            --bg-color: #f8f9fa;
+            --bg-color: #f4f6f8;
             --text-main: #2d3436;
             --border: #dfe6e9;
             --primary: #0984e3;
         }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background-color: var(--bg-color);
             color: var(--text-main);
             margin: 0;
-            padding: 20px;
+            padding: 15px;
         }
+        
+        /* 頂部標題列 */
         .header-container {
             max-width: 1200px;
-            margin: 0 auto 15px;
+            margin: 0 auto 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 5px;
         }
-        h1 { margin: 0; font-size: 24px; color: #2c3e50; }
-        .status { font-size: 0.9em; color: #00b894; font-weight: bold; }
+        h1 { margin: 0; font-size: 22px; color: #2c3e50; }
+        .status { font-size: 0.85em; color: #00b894; font-weight: bold; }
         
+        /* 導覽列 */
         .nav-controls {
             display: flex;
             justify-content: center;
             align-items: center;
             gap: 15px;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
         .nav-btn {
             background: #fff;
             border: 1px solid var(--border);
-            padding: 8px 20px;
+            padding: 8px 18px;
             border-radius: 20px;
             cursor: pointer;
             font-weight: bold;
             color: var(--text-main);
             transition: 0.2s;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+            white-space: nowrap;
         }
-        .nav-btn:hover:not(:disabled) { background: #f1f2f6; transform: translateY(-1px); }
-        .nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .week-title { font-size: 1.2em; font-weight: bold; color: #2c3e50; min-width: 240px; text-align: center; }
+        .nav-btn:active { background: #f1f2f6; transform: scale(0.96); }
+        .nav-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+        .week-title { font-size: 1.1em; font-weight: bold; color: #2c3e50; min-width: 200px; text-align: center; }
 
+        /* 表格外框設定 (加入 iOS 滑動優化) */
         .table-container {
             max-width: 1200px;
             margin: 0 auto;
             background: white;
             border-radius: 12px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-            overflow-x: auto;
+            /* 讓表格區域有獨立捲軸 */
+            overflow: auto;
+            max-height: 75vh; 
             position: relative;
+            /* 蘋果專屬：賦予原生 App 般的慣性平滑捲動 */
+            -webkit-overflow-scrolling: touch; 
         }
-        table { width: 100%; border-collapse: collapse; min-width: 900px; }
-        th, td { border: 1px solid var(--border); padding: 8px; text-align: center; width: 16%; vertical-align: middle; }
-        th { background-color: #f1f2f6; font-weight: bold; color: #636e72; }
-        .time-col { width: 8%; font-size: 0.9em; font-weight: bold; background-color: #fafbfc; color: #b2bec3; }
         
+        /* 表格與格線設定 (處理 Sticky 邊框問題) */
+        table { 
+            width: 100%; 
+            border-collapse: separate; /* 必須用 separate 才能完美支援凍結窗格 */
+            border-spacing: 0; 
+            min-width: 850px; /* 保障電腦版寬度，手機版會自動出現水平捲軸 */
+        }
+        th, td { 
+            border-bottom: 1px solid var(--border); 
+            border-right: 1px solid var(--border); 
+            padding: 6px; 
+            text-align: center; 
+            vertical-align: middle; 
+            width: 16%; 
+        }
+        th { border-top: 1px solid var(--border); }
+        td:first-child, th:first-child { border-left: 1px solid var(--border); }
+
+        /* 凍結上方星期幾 (Sticky Header) */
+        th { 
+            background-color: #f8fafc; 
+            font-weight: bold; 
+            color: #475569; 
+            position: sticky; 
+            top: 0; 
+            z-index: 10; 
+            box-shadow: 0 2px 2px -1px rgba(0,0,0,0.1);
+        }
+        /* 凍結左側時間軸 (Sticky Column) */
+        .time-col { 
+            width: 8%; 
+            font-size: 0.85em; 
+            font-weight: bold; 
+            background-color: #f8fafc; 
+            color: #64748b; 
+            position: sticky; 
+            left: 0; 
+            z-index: 10; 
+            box-shadow: 2px 0 2px -1px rgba(0,0,0,0.05);
+        }
+        /* 左上角交叉點，層級必須最高 */
+        th.time-col { z-index: 20; }
+        
+        /* 課程卡片 */
         .card {
             border-radius: 6px;
-            padding: 8px;
+            padding: 6px 4px;
             min-height: 55px;
             display: flex;
             flex-direction: column;
@@ -76,25 +127,48 @@
             gap: 4px;
             height: 100%;
             box-sizing: border-box;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         }
-        .course-name { font-weight: bold; font-size: 0.9em; line-height: 1.3; }
-        .course-meta { font-size: 0.75em; opacity: 0.8; }
-        .dept-tag { font-size: 0.75em; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.6); font-weight: bold; color: inherit; }
+        .course-name { font-weight: bold; font-size: 0.85em; line-height: 1.3; }
+        .course-meta { font-size: 0.7em; opacity: 0.85; }
+        .dept-tag { font-size: 0.7em; padding: 2px 5px; border-radius: 4px; background: rgba(255,255,255,0.65); font-weight: bold; color: inherit; }
 
         #loading {
             position: absolute; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(255,255,255,0.9);
             display: flex; justify-content: center; align-items: center;
             font-size: 1.2em; font-weight: bold; color: var(--primary);
-            border-radius: 12px; z-index: 10;
+            border-radius: 12px; z-index: 30;
+        }
+
+        /* 📱 針對 iPhone 與手機版的專屬調整 */
+        @media (max-width: 768px) {
+            body { padding: 10px 5px; }
+            h1 { font-size: 18px; }
+            .header-container { flex-direction: column; align-items: flex-start; margin-bottom: 10px; padding: 0 5px; }
+            
+            /* 手機版導覽列變得更緊湊 */
+            .nav-controls { gap: 8px; margin-bottom: 10px; }
+            .nav-btn { padding: 6px 12px; font-size: 0.85em; }
+            .week-title { font-size: 1em; min-width: 140px; }
+            
+            /* 讓卡片內容在手機上不會太大而破版 */
+            .course-name { font-size: 0.8em; }
+            .dept-tag { font-size: 0.65em; }
+            .course-meta { font-size: 0.65em; }
+            
+            /* 確保水平滑動時，每一欄還是保有一定的寬度可以閱讀 */
+            th:not(.time-col), td:not(.time-col) { min-width: 130px; }
+            .time-col { min-width: 50px; font-size: 0.75em; }
+            
+            .table-container { max-height: 80vh; border-radius: 8px; }
         }
     </style>
 </head>
 <body>
 
 <div class="header-container">
-    <h1>M4 臨床模組 <span style="font-size:0.6em; color:#7f8c8d;">(自動同步版)</span></h1>
+    <h1>M4 臨床模組 <span style="font-size:0.7em; color:#7f8c8d;">(自動同步版)</span></h1>
     <div class="status" id="syncStatus">🔄 正在與 Google Sheets 同步資料...</div>
 </div>
 
@@ -118,6 +192,7 @@
 </div>
 
 <script>
+    // 你的專屬 Google Sheets CSV 連結
     const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTbwXI_wb-WIdDcKn6KCFZBzcHf-CVpD7ogwSAe3l0a_yy6BevUDRjGS261olVtpMZ2In80WkW9x1HK/pub?gid=0&single=true&output=csv";
 
     const times = ["08:10<br>|<br>09:00", "09:00<br>|<br>09:50", "10:00<br>|<br>10:50", "10:50<br>|<br>11:40", 
@@ -127,7 +202,7 @@
     const endMap = {"09:00":0, "09:50":1, "10:50":2, "11:40":3, "14:20":4, "15:10":5, "16:10":6, "17:00":7};
     const dayMap = {"週一":0, "週二":1, "週三":2, "週四":3, "週五":4};
 
-    // 專屬色碼表 (已完整擴充五大模組的所有科別)
+    // 專屬色碼表
     const deptColors = {
         '內科': { bg: '#e3f2fd', text: '#1565c0' }, '內科學科': { bg: '#e3f2fd', text: '#1565c0' },
         '外科': { bg: '#ffebee', text: '#c62828' }, '外科部': { bg: '#ffebee', text: '#c62828' },
@@ -162,7 +237,7 @@
     let fullDates = {}; 
     let maxWeek = 0;
 
-    // 動態標題產生器 (涵蓋 M4 下學期的五大模組)
+    // 動態標題產生器
     function getWeekTitle(w) {
         if (w >= 0 && w <= 4) return `消化模組 第 ${w + 1} 週`;
         if (w >= 5 && w <= 8) return `腎泌模組 第 ${w - 4} 週`;
@@ -246,11 +321,11 @@
             currentWeek = targetWeek;
 
             document.getElementById('loading').style.display = 'none';
-            document.getElementById('syncStatus').innerHTML = "✅ 與 Google Sheets 同步完成";
+            document.getElementById('syncStatus').innerHTML = "✅ 同步完成";
             renderTable();
         },
         error: function(err) {
-            document.getElementById('loading').innerHTML = "❌ 讀取資料失敗，請確認 Google Sheets 權限設定。";
+            document.getElementById('loading').innerHTML = "❌ 讀取失敗，請確認設定。";
             document.getElementById('syncStatus').innerHTML = "⚠️ 同步失敗";
             console.error(err);
         }
