@@ -146,6 +146,16 @@
     let weekDates = {0: [], 1: [], 2: [], 3: [], 4: []}; 
     let maxWeek = 0;
 
+    // 【新增】：自動把 "8:10" 補回 "08:10"，解決早上課程消失的問題
+    function normalizeTime(t) {
+        if (!t) return "";
+        let s = t.trim();
+        if (s.length > 0 && s.indexOf(':') === 1) { 
+            s = "0" + s; 
+        }
+        return s.substring(0, 5); 
+    }
+
     // 開始抓取資料
     Papa.parse(csvUrl, {
         download: true,
@@ -154,12 +164,14 @@
             const data = results.data;
             
             data.forEach(row => {
-                if(!row.Week || !row.Weekday || !row['Start Time']) return; // 略過空白行
+                if(!row.Week || !row.Weekday || !row['Start Time']) return; 
                 
                 let wIdx = parseInt(row.Week) - 1;
                 let dIdx = dayMap[row.Weekday];
-                let sIdx = startMap[row['Start Time']];
-                let eIdx = endMap[row['End Time']];
+                
+                // 【修改】：使用 normalizeTime 轉換 Google Sheets 傳來的時間
+                let sIdx = startMap[normalizeTime(row['Start Time'])];
+                let eIdx = endMap[normalizeTime(row['End Time'])];
                 
                 if (wIdx > maxWeek) maxWeek = wIdx;
                 
